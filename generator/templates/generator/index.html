@@ -1,11 +1,294 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" data-theme="light">
 <head>
-    <meta charset="UTF-8">
-    <title>Passphrasen-Generator</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Passphrasen-Generator</title>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .passphrase-word { transition: transform 0.15s ease; }
+    .passphrase-word:hover { transform: translateY(-2px); }
+  </style>
 </head>
-<body>
-    <h1>Passphrasen-Generator</h1>
-    <p>Kommt bald.</p>
+<body class="bg-base-200 min-h-screen">
+
+  <!-- Navbar -->
+  <div class="navbar bg-base-100 shadow-sm px-6">
+    <div class="flex-1">
+      <span class="text-xl font-bold tracking-tight">Passphrasen-Generator</span>
+    </div>
+    <div class="flex-none">
+      <label class="swap swap-rotate btn btn-ghost btn-circle">
+        <input type="checkbox" id="theme-toggle">
+        <svg class="swap-off fill-current w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5.64,17l-.71.71a1,1,0,0,0,0,1.41,1,1,0,0,0,1.41,0l.71-.71A1,1,0,0,0,5.64,17ZM5,12a1,1,0,0,0-1-1H3a1,1,0,0,0,0,2H4A1,1,0,0,0,5,12Zm7-7a1,1,0,0,0,1-1V3a1,1,0,0,0-2,0V4A1,1,0,0,0,12,5ZM5.64,7,5,6.36a1,1,0,0,0-1.41,1.41L4.22,8.45A1,1,0,0,0,5.64,7Zm12,.71.71-.71A1,1,0,0,0,16.93,5.64l-.71.71A1,1,0,0,0,17.66,7.66ZM21,11H20a1,1,0,0,0,0,2h1a1,1,0,0,0,0-2Zm-9,8a1,1,0,0,0-1,1v1a1,1,0,0,0,2,0V20A1,1,0,0,0,12,19ZM18.36,17A1,1,0,0,0,17,18.36l.71.71a1,1,0,0,0,1.41-1.41ZM12,6.5A5.5,5.5,0,1,0,17.5,12,5.51,5.51,0,0,0,12,6.5Zm0,9A3.5,3.5,0,1,1,15.5,12,3.5,3.5,0,0,1,12,15.5Z"/></svg>
+        <svg class="swap-on fill-current w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21.64,13a1,1,0,0,0-1.05-.14,8.05,8.05,0,0,1-3.37.73A8.15,8.15,0,0,1,9.08,5.49a8.59,8.59,0,0,1,.25-2A1,1,0,0,0,8,2.36,10.14,10.14,0,1,0,22,14.05,1,1,0,0,0,21.64,13Zm-9.5,6.69A8.14,8.14,0,0,1,7.08,5.22v.27A10.15,10.15,0,0,0,17.22,15.63a9.79,9.79,0,0,0,2.1-.22A8.11,8.11,0,0,1,12.14,19.73Z"/></svg>
+      </label>
+    </div>
+  </div>
+
+  <div class="container mx-auto max-w-2xl px-4 py-10">
+
+    <!-- Mode Toggle -->
+    <div class="tabs tabs-boxed bg-base-100 shadow-sm mb-8 p-1">
+      <button class="tab tab-active flex-1 font-medium" id="tab-profile" onclick="switchTab('profile')">Profile</button>
+      <button class="tab flex-1 font-medium" id="tab-expert" onclick="switchTab('expert')">Experte</button>
+    </div>
+
+    <!-- ── Profile Panel ── -->
+    <div id="panel-profile">
+      {% if profiles %}
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+        {% for p in profiles %}
+        <div class="card bg-base-100 shadow cursor-pointer border-2 border-transparent profile-card hover:border-primary transition-colors"
+             data-profile="{{ p.word_count }}|{{ p.separator }}"
+             onclick="selectProfile(this)">
+          <div class="card-body py-4 px-5">
+            <h3 class="card-title text-base">{{ p.name }}</h3>
+            <p class="text-sm text-base-content/60">{{ p.word_count }} Wörter · Trenner: „{{ p.separator }}"</p>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="alert alert-info mb-6">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <span>Noch keine Profile angelegt — nutze den <button class="link" onclick="switchTab('expert')">Experten-Modus</button>.</span>
+      </div>
+      {% endif %}
+      <button class="btn btn-primary btn-lg w-full" onclick="doGenerate()">Passphrase generieren</button>
+    </div>
+
+    <!-- ── Expert Panel ── -->
+    <div id="panel-expert" class="hidden">
+      <div class="card bg-base-100 shadow mb-6">
+        <div class="card-body gap-6">
+
+          <!-- Wortanzahl -->
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text font-medium">Wortanzahl</span>
+              <span class="label-text-alt font-bold text-primary text-base" id="word-count-display">4</span>
+            </label>
+            <input type="range" min="2" max="10" value="4" class="range range-primary range-sm" id="word-count"
+                   oninput="document.getElementById('word-count-display').textContent = this.value">
+            <div class="flex justify-between text-xs text-base-content/40 mt-1">
+              <span>2</span><span>4</span><span>6</span><span>8</span><span>10</span>
+            </div>
+          </div>
+
+          <!-- Wortlänge -->
+          <div class="form-control">
+            <label class="label"><span class="label-text font-medium">Wortlänge</span></label>
+            <div class="flex gap-4">
+              <div class="flex-1">
+                <label class="label py-0"><span class="label-text-alt">Min</span><span class="label-text-alt font-semibold text-primary" id="min-len-display">4</span></label>
+                <input type="range" min="2" max="20" value="4" class="range range-primary range-sm" id="min-length"
+                       oninput="document.getElementById('min-len-display').textContent = this.value">
+              </div>
+              <div class="flex-1">
+                <label class="label py-0"><span class="label-text-alt">Max</span><span class="label-text-alt font-semibold text-primary" id="max-len-display">12</span></label>
+                <input type="range" min="4" max="30" value="12" class="range range-primary range-sm" id="max-length"
+                       oninput="document.getElementById('max-len-display').textContent = this.value">
+              </div>
+            </div>
+          </div>
+
+          <!-- Trennzeichen -->
+          <div class="form-control">
+            <label class="label"><span class="label-text font-medium">Trennzeichen</span></label>
+            <div class="flex gap-2 flex-wrap items-center">
+              <button class="btn btn-sm btn-outline separator-btn btn-active" data-sep="-" onclick="setSeparator('-', this)">-</button>
+              <button class="btn btn-sm btn-outline separator-btn" data-sep="_" onclick="setSeparator('_', this)">_</button>
+              <button class="btn btn-sm btn-outline separator-btn" data-sep="·" onclick="setSeparator('·', this)">·</button>
+              <button class="btn btn-sm btn-outline separator-btn" data-sep=" " onclick="setSeparator(' ', this)">Leerzeichen</button>
+              <button class="btn btn-sm btn-outline separator-btn" data-sep="" onclick="setSeparator('', this)">Keins</button>
+              <input type="text" id="separator-custom" placeholder="Eigener…" maxlength="5"
+                     class="input input-sm input-bordered w-28" oninput="setSeparator(this.value, null)">
+            </div>
+            <input type="hidden" id="separator" value="-">
+          </div>
+
+          <!-- 2-Spalten-Grid für Selects -->
+          <div class="grid grid-cols-2 gap-4">
+            <div class="form-control">
+              <label class="label"><span class="label-text font-medium">Schreibweise</span></label>
+              <select class="select select-bordered select-sm" id="case-mode">
+                {% for m in case_modes %}<option value="{{ m.code }}"{% if m.code == "lower" %} selected{% endif %}>{{ m.label }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="form-control">
+              <label class="label"><span class="label-text font-medium">Rückwärts</span></label>
+              <select class="select select-bordered select-sm" id="reverse-mode">
+                {% for m in reverse_modes %}<option value="{{ m.code }}"{% if m.code == "off" %} selected{% endif %}>{{ m.label }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="form-control">
+              <label class="label"><span class="label-text font-medium">Umlaute</span></label>
+              <select class="select select-bordered select-sm" id="umlaut-mode">
+                {% for m in umlaut_modes %}<option value="{{ m.code }}"{% if m.code == "allow" %} selected{% endif %}>{{ m.label }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="form-control">
+              <label class="label"><span class="label-text font-medium">ß</span></label>
+              <select class="select select-bordered select-sm" id="eszett-mode">
+                {% for m in eszett_modes %}<option value="{{ m.code }}"{% if m.code == "allow" %} selected{% endif %}>{{ m.label }}</option>{% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <!-- Toggle -->
+          <label class="label cursor-pointer justify-start gap-3">
+            <input type="checkbox" class="toggle toggle-primary toggle-sm" id="avoid-same-initial">
+            <span class="label-text">Gleichen Anfangsbuchstaben vermeiden</span>
+          </label>
+
+        </div>
+      </div>
+      <button class="btn btn-primary btn-lg w-full" onclick="doGenerate()">Passphrase generieren</button>
+    </div>
+
+    <!-- ── Ergebnis ── -->
+    <div id="result-area" class="mt-8 hidden">
+      <div class="card bg-base-100 shadow">
+        <div class="card-body items-center text-center gap-4">
+          <div class="flex flex-wrap justify-center gap-2 items-center" id="passphrase-words"></div>
+          <div class="text-2xl font-mono font-bold tracking-wide break-all select-all text-primary" id="passphrase-text"></div>
+          <div class="flex gap-3 items-center flex-wrap justify-center">
+            <button class="btn btn-outline btn-sm gap-2" id="copy-btn" onclick="copyPassphrase()">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+              Kopieren
+            </button>
+            <span class="badge badge-outline" id="entropy-badge"></span>
+            <span class="text-xs text-base-content/50" id="pool-info"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="loading-area" class="mt-8 hidden text-center py-4">
+      <span class="loading loading-dots loading-lg text-primary"></span>
+    </div>
+
+    <div id="error-area" class="mt-6 hidden">
+      <div class="alert alert-error"><span id="error-text"></span></div>
+    </div>
+
+  </div>
+
+  <script>
+    const GENERATE_URL = "{% url 'generator:generate' %}";
+    let currentTab = 'profile';
+
+    document.getElementById('theme-toggle').addEventListener('change', e => {
+      document.documentElement.setAttribute('data-theme', e.target.checked ? 'dark' : 'light');
+    });
+
+    function switchTab(tab) {
+      currentTab = tab;
+      ['profile', 'expert'].forEach(t => {
+        document.getElementById('panel-' + t).classList.toggle('hidden', t !== tab);
+        document.getElementById('tab-' + t).classList.toggle('tab-active', t === tab);
+      });
+    }
+
+    function setSeparator(val, btn) {
+      document.getElementById('separator').value = val;
+      document.querySelectorAll('.separator-btn').forEach(b => b.classList.remove('btn-active'));
+      if (btn) btn.classList.add('btn-active');
+    }
+
+    function selectProfile(card) {
+      document.querySelectorAll('.profile-card').forEach(c => {
+        c.classList.remove('border-primary', 'bg-primary/5');
+      });
+      card.classList.add('border-primary', 'bg-primary/5');
+    }
+
+    async function doGenerate() {
+      showLoading();
+      const payload = currentTab === 'expert' ? buildExpertPayload() : buildProfilePayload();
+      try {
+        const res  = await fetch(GENERATE_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Unbekannter Fehler');
+        showResult(data, payload.separator || '-');
+      } catch (e) {
+        showError(e.message);
+      }
+    }
+
+    function buildExpertPayload() {
+      return {
+        word_count:         parseInt(document.getElementById('word-count').value),
+        separator:          document.getElementById('separator').value,
+        case_mode:          document.getElementById('case-mode').value,
+        umlaut_mode:        document.getElementById('umlaut-mode').value,
+        eszett_mode:        document.getElementById('eszett-mode').value,
+        reverse_mode:       document.getElementById('reverse-mode').value,
+        avoid_same_initial: document.getElementById('avoid-same-initial').checked,
+        min_length:         parseInt(document.getElementById('min-length').value),
+        max_length:         parseInt(document.getElementById('max-length').value),
+      };
+    }
+
+    function buildProfilePayload() {
+      const selected = document.querySelector('.profile-card.border-primary');
+      if (selected) {
+        const [wc, sep] = selected.dataset.profile.split('|');
+        return { word_count: parseInt(wc), separator: sep, case_mode: 'lower',
+                 umlaut_mode: 'allow', eszett_mode: 'allow', reverse_mode: 'off',
+                 min_length: 4, max_length: 12 };
+      }
+      return { word_count: 4, separator: '-', case_mode: 'lower',
+               umlaut_mode: 'allow', eszett_mode: 'allow', reverse_mode: 'off',
+               min_length: 4, max_length: 12 };
+    }
+
+    function showResult(data, sep) {
+      hideAll();
+      const colors = ['badge-primary','badge-secondary','badge-accent','badge-info','badge-success'];
+      const sepHtml = sep ? `<span class="text-base-content/30 font-bold text-lg mx-0.5">${esc(sep)}</span>` : '';
+      document.getElementById('passphrase-words').innerHTML =
+        data.words.map((w, i) =>
+          `<span class="badge ${colors[i % colors.length]} badge-lg passphrase-word font-mono font-semibold px-3 py-3">${esc(w)}</span>`
+        ).join(sepHtml);
+
+      document.getElementById('passphrase-text').textContent = data.passphrase;
+
+      const ec = data.entropy_bits >= 72 ? 'badge-success' : data.entropy_bits >= 50 ? 'badge-warning' : 'badge-error';
+      const eb = document.getElementById('entropy-badge');
+      eb.className = `badge badge-outline ${ec}`;
+      eb.textContent = `${data.entropy_bits} bit · ${data.entropy_label}`;
+      document.getElementById('pool-info').textContent = `Pool: ${data.pool_size.toLocaleString('de')} Wörter`;
+      document.getElementById('result-area').classList.remove('hidden');
+    }
+
+    function copyPassphrase() {
+      const text = document.getElementById('passphrase-text').textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('copy-btn');
+        btn.textContent = '✓ Kopiert!';
+        btn.classList.add('btn-success');
+        setTimeout(() => {
+          btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg> Kopieren';
+          btn.classList.remove('btn-success');
+        }, 2000);
+      });
+    }
+
+    function showLoading() { hideAll(); document.getElementById('loading-area').classList.remove('hidden'); }
+    function showError(msg) { hideAll(); document.getElementById('error-text').textContent = msg; document.getElementById('error-area').classList.remove('hidden'); }
+    function hideAll() { ['result-area','loading-area','error-area'].forEach(id => document.getElementById(id).classList.add('hidden')); }
+    function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function getCookie(name) {
+      const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+      return v ? v.pop() : '';
+    }
+  </script>
 </body>
 </html>
