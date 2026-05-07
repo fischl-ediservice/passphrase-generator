@@ -1,0 +1,35 @@
+[tool.poetry]
+name         = "passphrase-generator"
+version      = "0.1.0"
+description  = "Kryptografisch sicherer deutscher Passphrasen-Generator"
+license      = "MIT"
+readme       = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python  = "^3.14"
+django  = "^6.0.5"
+psycopg = { version = "^3.2", extras = ["binary"] }
+pyphen  = "^0.17"
+
+[tool.poetry.group.dev.dependencies]
+pytest           = "^8.3"
+pytest-django    = "^4.9"
+ruff             = "^0.8"
+mypy             = "^1.13"
+django-stubs     = "^5.0"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "passphrase_generator.settings"
+python_files           = "test_*.py"
+
+[tool.ruff]
+line-length    = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[build-system]
+requires      = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
