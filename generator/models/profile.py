@@ -1,6 +1,7 @@
 from django.db import models
 from .base import VersionedModel
 from .wordlist import Wordlist
+from core.generator import GeneratorConfig
 
 
 class GeneratorProfile(VersionedModel):
@@ -36,6 +37,23 @@ class GeneratorProfile(VersionedModel):
                 name="min_length_lte_max_length",
             ),
         ]
+
+    def to_config(self) -> GeneratorConfig:
+        rules = [
+            (r.source_char, r.target_char, r.weight)
+            for r in self.special_char_rules.filter(is_active=True)
+        ] if self.special_chars_enabled else []
+        return GeneratorConfig(
+            word_count            = self.word_count,
+            separator             = self.separator,
+            case_mode             = self.case_mode.code    if self.case_mode    else "lower",
+            umlaut_mode           = self.umlaut_mode.code  if self.umlaut_mode  else "allow",
+            eszett_mode           = self.eszett_mode.code  if self.eszett_mode  else "allow",
+            reverse_mode          = self.reverse_mode.code if self.reverse_mode else "off",
+            special_chars_enabled = self.special_chars_enabled,
+            special_char_rules    = rules,
+            avoid_same_initial    = self.avoid_same_initial,
+        )
 
     def __str__(self):
         return f"{self.name} ({'Standard' if self.is_default else 'Profil'})"

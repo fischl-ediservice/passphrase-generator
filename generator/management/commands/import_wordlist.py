@@ -2,7 +2,7 @@ import urllib.request
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from generator.models import Wordlist, Word
-from generator.wordlist_filter import FilterConfig, WordlistFilter, print_filter_stats
+from core.wordlist_filter import FilterConfig, WordlistFilter, print_filter_stats
 
 RAW_URL = (
     "https://gist.github.com/MarvinJWendt/"
