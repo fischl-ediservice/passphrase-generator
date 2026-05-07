@@ -1,11 +1,12 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="de" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Passphrasen-Generator</title>
-  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet">
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="{% static 'generator/css/daisyui.min.css' %}" rel="stylesheet">
+  <script src="{% static 'generator/js/tailwind.js' %}"></script>
   <style>
     .passphrase-word { transition: transform 0.15s ease; }
     .passphrase-word:hover { transform: translateY(-2px); }
