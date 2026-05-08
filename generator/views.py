@@ -40,7 +40,7 @@ def generate(request):
             return JsonResponse({"error": "Profil nicht gefunden."}, status=404)
     else:
         config = GeneratorConfig(
-            word_count         = max(2, min(10, int(data.get("word_count", 4)))),
+            word_count         = max(2, int(data.get("word_count", 4))),
             separator          = data.get("separator", "-")[:10],
             case_mode          = data.get("case_mode",    "lower"),
             umlaut_mode        = data.get("umlaut_mode",  "allow"),

@@ -79,8 +79,11 @@
           <span style="font-size:.8125rem">Wortanzahl</span>
           <span class="mono-val" id="wc-val">4</span>
         </div>
-        <input type="range" min="2" max="10" value="4" id="word-count"
-               oninput="document.getElementById('wc-val').textContent=this.value">
+        <input type="range" min="2" max="20" value="4" id="word-count"
+               oninput="onWordCountChange(this)">
+        <div id="wordcount-warning" style="display:none;margin-top:8px;padding:6px 8px;background:#fffbeb;border:1px solid #fde68a;font-size:.75rem;color:#92400e">
+          ⚠ Über 12 Wörter → ca. 256 bit. Sicher genug für die Nuklearkoffer-Codes.
+        </div>
       </div>
 
       <!-- Wortlänge -->
@@ -206,6 +209,12 @@
   }
 
   // ── Min/Max Wortlänge ───────────────────────────────────────────────────────
+  function onWordCountChange(el) {
+    const n = parseInt(el.value);
+    document.getElementById('wc-val').textContent = n;
+    document.getElementById('wordcount-warning').style.display = n > 12 ? '' : 'none';
+  }
+
   function onMinChange(el) {
     const max = document.getElementById('max-length');
     if (parseInt(el.value) > parseInt(max.value)) {
