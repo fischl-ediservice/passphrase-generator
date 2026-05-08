@@ -93,7 +93,7 @@
               <span class="mono-val" id="min-val">4</span>
             </div>
             <input type="range" min="2" max="20" value="4" id="min-length"
-                   oninput="document.getElementById('min-val').textContent=this.value">
+                   oninput="onMinChange(this)">
           </div>
           <div>
             <div style="display:flex;justify-content:space-between;margin-bottom:4px">
@@ -101,7 +101,7 @@
               <span class="mono-val" id="max-val">12</span>
             </div>
             <input type="range" min="4" max="30" value="12" id="max-length"
-                   oninput="document.getElementById('max-val').textContent=this.value">
+                   oninput="onMaxChange(this)">
           </div>
         </div>
       </div>
@@ -200,6 +200,24 @@
     ['profile','expert'].forEach(t => {
       document.getElementById('tab-' + t).classList.toggle('active', t === tab);
     });
+  }
+
+  // ── Min/Max Wortlänge ───────────────────────────────────────────────────────
+  function onMinChange(el) {
+    const max = document.getElementById('max-length');
+    if (parseInt(el.value) > parseInt(max.value)) {
+      max.value = el.value;
+      document.getElementById('max-val').textContent = el.value;
+    }
+    document.getElementById('min-val').textContent = el.value;
+  }
+  function onMaxChange(el) {
+    const min = document.getElementById('min-length');
+    if (parseInt(el.value) < parseInt(min.value)) {
+      min.value = el.value;
+      document.getElementById('min-val').textContent = el.value;
+    }
+    document.getElementById('max-val').textContent = el.value;
   }
 
   // ── Separator ───────────────────────────────────────────────────────────────
