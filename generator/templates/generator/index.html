@@ -92,7 +92,7 @@
               <span class="label-sm">Min</span>
               <span class="mono-val" id="min-val">6</span>
             </div>
-            <input type="range" min="5" max="20" value="6" id="min-length"
+            <input type="range" min="4" max="20" value="6" id="min-length"
                    oninput="onMinChange(this)">
           </div>
           <div>
@@ -100,9 +100,12 @@
               <span class="label-sm">Max</span>
               <span class="mono-val" id="max-val">12</span>
             </div>
-            <input type="range" min="5" max="30" value="12" id="max-length"
+            <input type="range" min="4" max="30" value="12" id="max-length"
                    oninput="onMaxChange(this)">
           </div>
+        </div>
+        <div id="short-word-warning" style="display:none;margin-top:8px;padding:6px 8px;background:#fffbeb;border:1px solid #fde68a;font-size:.75rem;color:#92400e">
+          ⚠ Wörter unter 6 Zeichen können Eigennamen oder unbekannte Begriffe enthalten.
         </div>
       </div>
 
@@ -210,6 +213,7 @@
       document.getElementById('max-val').textContent = el.value;
     }
     document.getElementById('min-val').textContent = el.value;
+    updateShortWordWarning();
   }
   function onMaxChange(el) {
     const min = document.getElementById('min-length');
@@ -218,6 +222,11 @@
       document.getElementById('min-val').textContent = el.value;
     }
     document.getElementById('max-val').textContent = el.value;
+    updateShortWordWarning();
+  }
+  function updateShortWordWarning() {
+    const min = parseInt(document.getElementById('min-length').value);
+    document.getElementById('short-word-warning').style.display = (min < 6) ? '' : 'none';
   }
 
   // ── Separator ───────────────────────────────────────────────────────────────

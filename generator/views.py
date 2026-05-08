@@ -48,7 +48,7 @@ def generate(request):
             reverse_mode       = data.get("reverse_mode", "off"),
             avoid_same_initial = bool(data.get("avoid_same_initial", False)),
         )
-        min_len = max(2, int(data.get("min_length", 4)))
+        min_len = max(4, int(data.get("min_length", 6)))   # hart: niemals unter 4
         max_len = max(min_len, int(data.get("max_length", 12)))
 
     words = list(
