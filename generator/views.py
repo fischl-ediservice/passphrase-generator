@@ -39,14 +39,14 @@ def generate(request):
         except GeneratorProfile.DoesNotExist:
             return JsonResponse({"error": "Profil nicht gefunden."}, status=404)
     else:
-        sep_raw       = data.get("separator", "-")[:50]
-        sep_complete  = bool(data.get("separator_complete", False))
-        if not sep_complete and "," in sep_raw:
-            sep_pool  = [s for s in sep_raw.split(",") if s]
-            separator = sep_pool[0] if sep_pool else "-"
-        else:
+        sep_raw      = data.get("separator", "-")[:50]
+        sep_complete = bool(data.get("separator_complete", False))
+        if sep_complete or len(sep_raw) <= 1:
             sep_pool  = []
             separator = sep_raw
+        else:
+            sep_pool  = list(sep_raw)   # jedes Zeichen einzeln in den Pool
+            separator = sep_pool[0]
         config = GeneratorConfig(
             word_count              = max(2, int(data.get("word_count", 4))),
             separator               = separator,
