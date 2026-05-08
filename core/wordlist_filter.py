@@ -28,7 +28,11 @@ class FilterConfig:
     proper_noun_suffixes: tuple = (
         "erin", "erinnen", "ern", "ers",
         "burg", "stadt", "dorf", "bach",
+        "heim", "hausen", "kirch", "furt",
+        "ingen", "ingen", "stedt",
     )
+    # Kurze Großschreibungswörter (≤ diese Länge) werden strenger geprüft
+    short_noun_max_len: int = 5
     baseform_whitelist: frozenset = field(default_factory=lambda: frozenset({
         "ende", "legende", "wende", "binde", "rinde", "linde",
         "grenze", "sekunde", "stunde", "runde", "wunde", "kunde",
@@ -91,6 +95,12 @@ class WordlistFilter:
             for suffix in self.cfg.proper_noun_suffixes:
                 if w_lower.endswith(suffix) and len(word) > len(suffix) + 3:
                     return False, f"eigenname:{suffix}"
+            # Kurze Großschreibungswörter: nur eine Silbe → wahrscheinlich
+            # Eigenname, Abkürzung oder Fremdwort (Calw, Hamm, Kiel, Ajax …)
+            if len(word) <= self.cfg.short_noun_max_len:
+                syllable_count = self._syllables.count(word)
+                if syllable_count < 2:
+                    return False, f"kurzform_eigenname ({len(word)} Zeichen, {syllable_count} Silbe)"
         return True, ""
 
     def _enrich(self, word: str) -> dict:
