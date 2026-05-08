@@ -5,6 +5,7 @@ from .word import Word, WordCategory
 from .profile import GeneratorProfile
 from .special_char import SpecialCharRule
 from .banlist import BanReason, BannedWord
+from .feedback import UserWordFeedback
 
 __all__ = [
     "BaseModel", "TrackableModel", "VersionedModel",
@@ -14,4 +15,5 @@ __all__ = [
     "GeneratorProfile",
     "SpecialCharRule",
     "BanReason", "BannedWord",
+    "UserWordFeedback",
 ]
