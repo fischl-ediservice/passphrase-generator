@@ -5,6 +5,7 @@ import re
 from dataclasses import dataclass, field
 
 from core.phonetics import SyllableAnalyzer
+from core.transforms import normalize_german_word
 
 
 @dataclass
@@ -44,12 +45,19 @@ class WordlistFilter:
 
     def filter_lines(self, lines: list[str]) -> dict:
         accepted, rejected = [], []
+        seen: set[str] = set()
         for raw in lines:
             word = raw.strip()
             if not word:
                 continue
+            # Normalisieren vor der Bewertung — flektierte Formen auf Grundform
+            word = normalize_german_word(word)
+            if word in seen:
+                rejected.append((word, "duplikat_nach_normalisierung"))
+                continue
             ok, reason = self._evaluate(word)
             if ok:
+                seen.add(word)
                 accepted.append(self._enrich(word))
             else:
                 rejected.append((word, reason))
