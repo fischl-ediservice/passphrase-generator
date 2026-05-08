@@ -4,7 +4,7 @@ Kern-Generator. Kein Framework-Import — nur stdlib + core.
 import secrets
 from dataclasses import dataclass, field
 
-from core.entropy import calculate_entropy, entropy_label, secure_sample
+from core.entropy import calculate_entropy, entropy_label, secure_sample, stride_sample
 from core.transforms import (
     apply_case,
     apply_eszett,
@@ -57,10 +57,15 @@ def generate_passphrase(words: list[str], config: GeneratorConfig) -> Passphrase
 
 
 def _pick_words(words: list[str], config: GeneratorConfig) -> list[str]:
+    # Stride-Sampling: gleichmäßige Abdeckung des Pools
+    # dann aus dem Stride-Sample die finale Auswahl treffen
+    sample_size = min(len(words), max(config.word_count * 10, 500))
+    pool = stride_sample(words, sample_size)
+
     if not config.avoid_same_initial:
-        return secure_sample(words, config.word_count)
+        return secure_sample(pool, config.word_count)
     for _ in range(20):
-        candidate = secure_sample(words, config.word_count)
+        candidate = secure_sample(pool, config.word_count)
         if len({w[0].lower() for w in candidate}) == len(candidate):
             return candidate
     return candidate  # type: ignore[return-value]
