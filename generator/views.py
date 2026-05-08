@@ -39,29 +39,49 @@ def generate(request):
         except GeneratorProfile.DoesNotExist:
             return JsonResponse({"error": "Profil nicht gefunden."}, status=404)
     else:
+        sep_raw       = data.get("separator", "-")[:50]
+        sep_complete  = bool(data.get("separator_complete", False))
+        if not sep_complete and "," in sep_raw:
+            sep_pool  = [s for s in sep_raw.split(",") if s]
+            separator = sep_pool[0] if sep_pool else "-"
+        else:
+            sep_pool  = []
+            separator = sep_raw
         config = GeneratorConfig(
-            word_count         = max(2, int(data.get("word_count", 4))),
-            separator          = data.get("separator", "-")[:10],
-            case_mode          = data.get("case_mode",    "lower"),
-            umlaut_mode        = data.get("umlaut_mode",  "allow"),
-            eszett_mode        = data.get("eszett_mode",  "allow"),
-            reverse_mode       = data.get("reverse_mode", "off"),
-            avoid_same_initial = bool(data.get("avoid_same_initial", False)),
+            word_count              = max(2, int(data.get("word_count", 4))),
+            separator               = separator,
+            separator_pool          = sep_pool,
+            case_mode               = data.get("case_mode",    "lower"),
+            umlaut_mode             = data.get("umlaut_mode",  "allow"),
+            eszett_mode             = data.get("eszett_mode",  "allow"),
+            reverse_mode            = data.get("reverse_mode", "off"),
+            avoid_same_initial      = bool(data.get("avoid_same_initial", False)),
+            syllable_shuffle_enabled= bool(data.get("syllable_shuffle", False)),
+            digit_mode              = data.get("digit_mode", "off"),
         )
         min_len = max(4, int(data.get("min_length", 6)))   # hart: niemals unter 4
         max_len = max(min_len, int(data.get("max_length", 12)))
 
-    words = list(
+    qs = (
         Word.objects
         .filter(word_length__gte=min_len, word_length__lte=max_len)
         .order_by("?")
-        .values_list("word", flat=True)[:8000]
     )
+
+    if config.syllable_shuffle_enabled:
+        # Nur Wörter mit ≥ 2 Silben laden — shuffle auf Einsilbern ist sinnlos
+        qs = qs.exclude(syllable_shuffle_mode="unsuitable")
+        rows = list(qs.values("word", "syllables")[:8000])
+        words         = [r["word"]     for r in rows]
+        syllables_map = {r["word"]: r["syllables"] for r in rows}
+    else:
+        words         = list(qs.values_list("word", flat=True)[:8000])
+        syllables_map = None
 
     if len(words) < config.word_count:
         return JsonResponse({"error": "Zu wenige Wörter im Pool für diese Einstellungen."}, status=400)
 
-    result = generate_passphrase(words, config)
+    result = generate_passphrase(words, config, syllables_map)
     return JsonResponse({
         "passphrase":    result.passphrase,
         "words":         result.words,

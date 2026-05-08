@@ -82,6 +82,110 @@ def reverse_word(word: str) -> str:
     return word[::-1]
 
 
+_LETTER_TO_DIGIT: dict[str, str] = {
+    'a': '4', 'e': '3', 'i': '1', 'o': '0',
+    's': '5', 'b': '6', 't': '7', 'g': '9', 'l': '1',
+}
+
+
+def apply_case_guarantee(words: list[str], case_mode: str, rng_func) -> list[str]:
+    """Setzt genau einen zufälligen Buchstaben — immer, kein Retry.
+    upper-Modus: einen lowern. Alle anderen: einen uppern."""
+    candidates = [
+        (wi, ci)
+        for wi, w in enumerate(words)
+        for ci, c in enumerate(w)
+        if c.isalpha()
+    ]
+    if not candidates:
+        return words
+    words = list(words)
+    wi, ci = candidates[rng_func(len(candidates))]
+    w = words[wi]
+    ch = w[ci].lower() if case_mode == "upper" else w[ci].upper()
+    words[wi] = w[:ci] + ch + w[ci + 1:]
+    return words
+
+
+def inject_digit(
+    words: list[str],
+    mode: str,
+    rng_func,
+    syllables_map: dict[str, list[str]] | None = None,
+    original_words: list[str] | None = None,
+) -> list[str]:
+    """
+    Fügt genau eine Ziffer ein.
+
+    Modi:
+      replace          – einen mappbaren Buchstaben durch Ziffer ersetzen (o→0 …)
+      inject_syllable  – zwischen zwei beliebige Silbengrenzen der Phrase (inkl. Wortenden)
+      inject_word_end  – ans Ende eines zufälligen Wortes anhängen
+      inject_phrase    – als eigenes Token an Start oder Ende der Phrase
+    """
+    words = list(words)
+    digit = str(rng_func(10))
+
+    if mode == "replace":
+        candidates = [
+            (wi, ci, _LETTER_TO_DIGIT[c.lower()])
+            for wi, w in enumerate(words)
+            for ci, c in enumerate(w)
+            if c.lower() in _LETTER_TO_DIGIT
+        ]
+        if candidates:
+            wi, ci, d = candidates[rng_func(len(candidates))]
+            w = words[wi]
+            words[wi] = w[:ci] + d + w[ci + 1:]
+
+    elif mode == "inject_syllable":
+        # Alle Silbengrenzen: (word_index, char_pos_after_syllable)
+        boundaries: list[tuple[int, int]] = []
+        orig = original_words or words
+        for wi, (w, orig_w) in enumerate(zip(words, orig)):
+            sylls = (syllables_map or {}).get(orig_w, [orig_w])
+            pos = 0
+            for syll in sylls:
+                pos += len(syll)
+                # Grenze ist gültig auch wenn pos >= len(w) (Wortende)
+                boundaries.append((wi, min(pos, len(w))))
+        if boundaries:
+            wi, char_pos = boundaries[rng_func(len(boundaries))]
+            w = words[wi]
+            words[wi] = w[:char_pos] + digit + w[char_pos:]
+        else:
+            # Fallback: ans Wortende
+            wi = rng_func(len(words))
+            words[wi] += digit
+
+    elif mode == "inject_word_end":
+        wi = rng_func(len(words))
+        words[wi] += digit
+
+    elif mode == "inject_phrase":
+        if rng_func(2) == 0:
+            words.insert(0, digit)
+        else:
+            words.append(digit)
+
+    return words
+
+
+def shuffle_syllables(word: str, syllables: list[str], rng_func) -> str:
+    """
+    Fisher-Yates shuffle der Silben eines Wortes.
+    Gibt das Wort unverändert zurück wenn < 2 Silben vorhanden.
+    """
+    if len(syllables) < 2:
+        return word
+    parts = list(syllables)
+    n = len(parts)
+    for i in range(n - 1, 0, -1):
+        j = rng_func(i + 1)
+        parts[i], parts[j] = parts[j], parts[i]
+    return "".join(parts)
+
+
 def apply_special_chars(
     word: str,
     rules: list[tuple[str, str, int]],

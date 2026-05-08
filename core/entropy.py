@@ -17,77 +17,43 @@ def secure_sample(seq: list, k: int) -> list:
 
 def stride_sample(seq: list, k: int) -> list:
     """
-    Kryptografisch sicheres Stride-Sampling.
+    Kryptografisch sicheres Stride-Sampling mit schrumpfendem Pool.
 
     1. Fisher-Yates Shuffle des gesamten Pools (secrets)
-    2. Zufälliger Startpunkt x (crypto rand)
-    3. Zufällige Schrittlänge y (crypto rand, mind. 1)
-    4. Traversierung: pos → pos+y
-       Überlauf: Reflexion am Ende → pos = (N-1) - ((pos+y) - N)
-       = 2*(N-1) - pos - y  (Spiegelpunkt, kein Modulo-Sprung)
-    5. Bei Zyklus ohne k Treffer: Fallback auf secure_sample
+    2. Krypto-zufälliger Startpunkt x  (0 … N-1)
+    3. Krypto-zufällige Schrittlänge y (1 … N-1)
+    4. Element an pos entnehmen (Pool schrumpft)
+       Nächste pos = pos + y
+       Überlauf: next_pos -= N  (N = Größe VOR der Entnahme)
 
-    Gegenüber reinem secure_sample: gleichmäßigere Abdeckung des
-    Pools über die gesamte Breite, kein Clustering.
+    Beispiel: N=100, pos=90, y=20
+      → next = 110, overflow → 110-100 = 10, Pool jetzt 99
+      → next = 10+20 = 30, Pool jetzt 98 …
     """
     pool = list(seq)
     n    = len(pool)
     if k >= n:
         return pool
 
-    # Schritt 1: Pool shufflen (Fisher-Yates mit secrets)
+    # Schritt 1: Fisher-Yates Shuffle
     for i in range(n - 1, 0, -1):
         j = secrets.randbelow(i + 1)
         pool[i], pool[j] = pool[j], pool[i]
 
-    # Schritt 2+3: Startpunkt und Schrittlänge
-    x = secrets.randbelow(n)          # 0 … n-1
-    y = secrets.randbelow(n - 1) + 1  # 1 … n-1
+    # Schritt 2+3
+    pos = secrets.randbelow(n)          # 0 … N-1
+    y   = secrets.randbelow(n - 1) + 1  # 1 … N-1
 
-    # Schritt 4: Stride mit Reflexion
-    result  = []
-    visited = set()
-    pos     = x
+    result: list = []
 
-    seen_positions: set[int] = set()
-    cycles_without_new = 0
-
-    while len(result) < k:
-        # Wort eintragen falls noch nicht besucht
-        if pos not in visited:
-            result.append(pool[pos])
-            visited.add(pos)
-            cycles_without_new = 0
-        else:
-            cycles_without_new += 1
-
-        # Abbruch bei Zyklus (alle erreichbaren Positionen erschöpft)
-        if cycles_without_new > n:
-            break
-
-        # Nächste Position berechnen
+    while len(result) < k and pool:
+        pos = pos % len(pool)           # Sicherheitsnetz falls y > aktuelle Poolgröße
+        n_before = len(pool)
+        result.append(pool.pop(pos))
         next_pos = pos + y
-
-        # Reflexion am oberen Ende
-        if next_pos >= n:
-            next_pos = 2 * (n - 1) - next_pos
-            y = -y
-
-        # Reflexion am unteren Ende
-        if next_pos < 0:
-            next_pos = -next_pos
-            y = -y
-
-        # Degenerierten Einzel-Zyklus erkennen
-        if next_pos == pos:
-            break
-
+        if next_pos >= n_before:
+            next_pos -= n_before
         pos = next_pos
-
-    # Fallback: fehlende Wörter zufällig ergänzen
-    if len(result) < k:
-        remaining = [pool[i] for i in range(n) if i not in visited]
-        result.extend(secure_sample(remaining, min(k - len(result), len(remaining))))
 
     return result
 

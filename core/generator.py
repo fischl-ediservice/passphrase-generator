@@ -7,10 +7,13 @@ from dataclasses import dataclass, field
 from core.entropy import calculate_entropy, entropy_label, secure_sample, stride_sample
 from core.transforms import (
     apply_case,
+    apply_case_guarantee,
     apply_eszett,
     apply_special_chars,
+    inject_digit,
     normalize_umlaut,
     reverse_word,
+    shuffle_syllables,
 )
 
 
@@ -18,13 +21,16 @@ from core.transforms import (
 class GeneratorConfig:
     word_count:            int   = 4
     separator:             str   = "-"
+    separator_pool:        list  = field(default_factory=list)  # nicht-leer → zufällig pro Paar
     case_mode:             str   = "lower"    # lower | upper | title | original
     umlaut_mode:           str   = "allow"    # allow | normalize | exclude
     eszett_mode:           str   = "allow"    # allow | replace
     reverse_mode:          str   = "off"      # off | some | every_other | all
-    special_chars_enabled: bool  = False
-    special_char_rules:    list  = field(default_factory=list)  # [(source, target, weight)]
-    avoid_same_initial:    bool  = False
+    special_chars_enabled:    bool  = False
+    special_char_rules:       list  = field(default_factory=list)  # [(source, target, weight)]
+    avoid_same_initial:       bool  = False
+    syllable_shuffle_enabled: bool  = False
+    digit_mode:               str   = "off"   # off | replace | inject_syllable | inject_word_end | inject_phrase
 
 
 @dataclass
@@ -36,24 +42,49 @@ class PassphraseResult:
     pool_size:     int
 
 
-def generate_passphrase(words: list[str], config: GeneratorConfig) -> PassphraseResult:
+def generate_passphrase(
+    words: list[str],
+    config: GeneratorConfig,
+    syllables_map: dict[str, list[str]] | None = None,
+) -> PassphraseResult:
     if len(words) < config.word_count:
         raise ValueError(
             f"Wortpool zu klein: {len(words)} Wörter, {config.word_count} benötigt."
         )
 
-    pool_size   = len(words)
-    selected    = _pick_words(words, config)
-    transformed = [_transform(w, i, config) for i, w in enumerate(selected)]
+    pool_size      = len(words)
+    selected       = _pick_words(words, config)
+    transformed    = [
+        _transform(w, i, config, syllables_map)
+        for i, w in enumerate(selected)
+    ]
+
+    transformed = apply_case_guarantee(transformed, config.case_mode, secrets.randbelow)
+    if config.digit_mode != "off":
+        transformed = inject_digit(
+            transformed, config.digit_mode, secrets.randbelow,
+            syllables_map=syllables_map,
+            original_words=selected,
+        )
 
     bits = calculate_entropy(pool_size, config.word_count)
     return PassphraseResult(
-        passphrase    = config.separator.join(transformed),
-        words         = transformed,
+        passphrase    = _join(transformed, config),
+        words         = selected,   # Originalwörter für die Chips — nicht transformiert
         entropy_bits  = bits,
         entropy_label = entropy_label(bits),
         pool_size     = pool_size,
     )
+
+
+def _join(words: list[str], config: GeneratorConfig) -> str:
+    if not config.separator_pool:
+        return config.separator.join(words)
+    parts = [words[0]]
+    for w in words[1:]:
+        parts.append(config.separator_pool[secrets.randbelow(len(config.separator_pool))])
+        parts.append(w)
+    return "".join(parts)
 
 
 def _pick_words(words: list[str], config: GeneratorConfig) -> list[str]:
@@ -71,7 +102,15 @@ def _pick_words(words: list[str], config: GeneratorConfig) -> list[str]:
     return candidate  # type: ignore[return-value]
 
 
-def _transform(word: str, index: int, config: GeneratorConfig) -> str:
+def _transform(
+    word: str,
+    index: int,
+    config: GeneratorConfig,
+    syllables_map: dict[str, list[str]] | None = None,
+) -> str:
+    if config.syllable_shuffle_enabled and syllables_map:
+        syllables = syllables_map.get(word, [])
+        word = shuffle_syllables(word, syllables, secrets.randbelow)
     word = normalize_umlaut(word, config.umlaut_mode)
     word = apply_eszett(word, config.eszett_mode)
     if config.special_chars_enabled and config.special_char_rules:

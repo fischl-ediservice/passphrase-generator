@@ -121,8 +121,12 @@
           <button class="sep-btn"        data-sep="·"  onclick="setSeparator('·',this)">·</button>
           <button class="sep-btn"        data-sep=" "  onclick="setSeparator(' ',this)">Leer</button>
           <button class="sep-btn"        data-sep=""   onclick="setSeparator('',this)">Keins</button>
-          <input type="text" id="separator-custom" placeholder="Eigener…" maxlength="5"
-                 style="width:80px;font-family:monospace" oninput="setSeparator(this.value,null)">
+          <input type="text" id="separator-custom" placeholder="&amp;,%,7 …" maxlength="50"
+                 style="width:110px;font-family:monospace" oninput="setSeparator(this.value,null)">
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
+          <input type="checkbox" id="separator-complete">
+          <label for="separator-complete" style="font-size:.75rem;color:#6b7280;cursor:pointer">Als vollständigen Trenner (kein Pool)</label>
         </div>
         <input type="hidden" id="separator" value="-">
       </div>
@@ -147,10 +151,28 @@
         </div>
       </div>
 
-      <!-- Checkbox -->
-      <div class="card-row" style="display:flex;align-items:center;gap:8px">
-        <input type="checkbox" id="avoid-same-initial">
-        <label for="avoid-same-initial" style="font-size:.8125rem;cursor:pointer">Gleichen Anfangsbuchstaben vermeiden</label>
+      <!-- Checkboxen -->
+      <div class="card-row" style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="checkbox" id="avoid-same-initial">
+          <label for="avoid-same-initial" style="font-size:.8125rem;cursor:pointer">Gleichen Anfangsbuchstaben vermeiden</label>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="checkbox" id="syllable-shuffle">
+          <label for="syllable-shuffle" style="font-size:.8125rem;cursor:pointer">Silben-Shuffle <span style="font-size:.7rem;color:#6b7280">(Wörterbuch-Angriff stirbt)</span></label>
+        </div>
+      </div>
+
+      <!-- Ziffer -->
+      <div class="card-row">
+        <div class="label-sm">Ziffer</div>
+        <select id="digit-mode">
+          <option value="off">Keine</option>
+          <option value="replace">Buchstabe ersetzen (o→0, e→3 …)</option>
+          <option value="inject_syllable">Zwischen Silben einfügen</option>
+          <option value="inject_word_end">Am Wortende anhängen</option>
+          <option value="inject_phrase">Am Phrasenanfang/-ende</option>
+        </select>
       </div>
     </div>
 
@@ -272,11 +294,14 @@
     return {
       word_count:         parseInt(document.getElementById('word-count').value),
       separator:          document.getElementById('separator').value,
+      separator_complete: document.getElementById('separator-complete').checked,
       case_mode:          document.getElementById('case-mode').value,
       umlaut_mode:        document.getElementById('umlaut-mode').value,
       eszett_mode:        document.getElementById('eszett-mode').value,
       reverse_mode:       document.getElementById('reverse-mode').value,
       avoid_same_initial: document.getElementById('avoid-same-initial').checked,
+      syllable_shuffle:   document.getElementById('syllable-shuffle').checked,
+      digit_mode:         document.getElementById('digit-mode').value,
       min_length:         parseInt(document.getElementById('min-length').value),
       max_length:         parseInt(document.getElementById('max-length').value),
     };
