@@ -5,6 +5,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get("DJANGO_SECRET", "change-me-for-local-dev-only")
 DEBUG      = os.environ.get("DEBUG", "false").lower() == "true"
+ADULT_WORD_UNLOCK_PASSWORD = os.environ.get("ADULT_WORD_UNLOCK_PASSWORD", "fluchmodus")
 
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0"]
 
@@ -15,7 +16,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "generator",
+    "generator.apps.GeneratorConfig",
 ]
 
 MIDDLEWARE = [

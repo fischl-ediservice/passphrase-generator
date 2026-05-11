@@ -1,11 +1,24 @@
 import json
+import secrets
+from threading import RLock
+
+from django.conf import settings
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
 
-from core.generator import GeneratorConfig, generate_passphrase
+from core.entropy import stride_indices
+from core.generator import (
+    GeneratorConfig,
+    generate_passphrase_from_selection,
+)
 from generator.models import Lookup, Word, GeneratorProfile
+
+STANDARD_WORD_PATTERN = r"^[A-ZÄÖÜ]"
+_WORD_POOL_SOURCE: tuple[dict, ...] | None = None
+_WORD_POOL_CACHE: dict[tuple, tuple] = {}
+_WORD_POOL_CACHE_LOCK = RLock()
 
 
 def index(request):
@@ -58,30 +71,34 @@ def generate(request):
             avoid_same_initial      = bool(data.get("avoid_same_initial", False)),
             syllable_shuffle_enabled= bool(data.get("syllable_shuffle", False)),
             digit_mode              = data.get("digit_mode", "off"),
+            special_mode            = data.get("special_mode", "off"),
         )
+        try:
+            config.include_adult_words = _adult_words_unlocked(data)
+        except ValueError as exc:
+            return JsonResponse({"error": str(exc)}, status=403)
         min_len = max(4, int(data.get("min_length", 6)))   # hart: niemals unter 4
         max_len = max(min_len, int(data.get("max_length", 12)))
 
-    qs = (
-        Word.objects
-        .filter(word_length__gte=min_len, word_length__lte=max_len)
-        .order_by("?")
+    needs_syllables = (
+        config.syllable_shuffle_enabled
+        or config.digit_mode == "inject_syllable"
+        or config.special_mode == "inject_syllable"
     )
+    pool = _get_word_pool(min_len, max_len, config, needs_syllables)
+    pool_size = len(pool)
 
-    if config.syllable_shuffle_enabled:
-        # Nur Wörter mit ≥ 2 Silben laden — shuffle auf Einsilbern ist sinnlos
-        qs = qs.exclude(syllable_shuffle_mode="unsuitable")
-        rows = list(qs.values("word", "syllables")[:8000])
-        words         = [r["word"]     for r in rows]
-        syllables_map = {r["word"]: r["syllables"] for r in rows}
-    else:
-        words         = list(qs.values_list("word", flat=True)[:8000])
-        syllables_map = None
-
-    if len(words) < config.word_count:
+    if pool_size < config.word_count:
         return JsonResponse({"error": "Zu wenige Wörter im Pool für diese Einstellungen."}, status=400)
 
-    result = generate_passphrase(words, config, syllables_map)
+    entries = _pick_pool_entries(pool, config, needs_syllables)
+    words = [_entry_word(entry, needs_syllables) for entry in entries]
+    syllables_map = (
+        {entry["word"]: entry["syllables"] for entry in entries}
+        if needs_syllables else None
+    )
+
+    result = generate_passphrase_from_selection(words, pool_size, config, syllables_map)
     return JsonResponse({
         "passphrase":    result.passphrase,
         "words":         result.words,
@@ -89,6 +106,127 @@ def generate(request):
         "entropy_label": result.entropy_label,
         "pool_size":     result.pool_size,
     })
+
+
+def _word_pool_cache_key(
+    min_len: int,
+    max_len: int,
+    config: GeneratorConfig,
+    include_syllables: bool,
+) -> tuple:
+    return (
+        min_len,
+        max_len,
+        bool(config.syllable_shuffle_enabled),
+        bool(include_syllables),
+        bool(config.include_adult_words),
+        bool(config.include_technical_words),
+    )
+
+
+def warm_word_pool_cache(force: bool = False) -> int:
+    global _WORD_POOL_SOURCE
+    with _WORD_POOL_CACHE_LOCK:
+        if _WORD_POOL_SOURCE is not None and not force:
+            return len(_WORD_POOL_SOURCE)
+
+        _WORD_POOL_SOURCE = _query_word_pool_source()
+        _WORD_POOL_CACHE.clear()
+        return len(_WORD_POOL_SOURCE)
+
+
+def _query_word_pool_source() -> tuple[dict, ...]:
+    return tuple(
+        Word.objects
+        .filter(word__regex=STANDARD_WORD_PATTERN)
+        .order_by("word")
+        .values(
+            "word",
+            "word_length",
+            "syllables",
+            "syllable_shuffle_mode",
+            "adult_only",
+            "is_technical",
+        )
+    )
+
+
+def _get_word_pool(
+    min_len: int,
+    max_len: int,
+    config: GeneratorConfig,
+    include_syllables: bool,
+) -> tuple:
+    cache_key = _word_pool_cache_key(min_len, max_len, config, include_syllables)
+    with _WORD_POOL_CACHE_LOCK:
+        cached = _WORD_POOL_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
+
+        source = _WORD_POOL_SOURCE
+        if source is None:
+            warm_word_pool_cache()
+            source = _WORD_POOL_SOURCE or ()
+
+        rows = (
+            row for row in source
+            if min_len <= row["word_length"] <= max_len
+            and (config.include_adult_words or not row["adult_only"])
+            and (config.include_technical_words or not row["is_technical"])
+            and (
+                not config.syllable_shuffle_enabled
+                or row["syllable_shuffle_mode"] != "unsuitable"
+            )
+        )
+        pool = tuple(
+            {"word": row["word"], "syllables": row["syllables"]}
+            if include_syllables else row["word"]
+            for row in rows
+        )
+
+        _WORD_POOL_CACHE[cache_key] = pool
+        return pool
+
+
+def clear_word_pool_cache(clear_source: bool = False) -> None:
+    global _WORD_POOL_SOURCE
+    with _WORD_POOL_CACHE_LOCK:
+        _WORD_POOL_CACHE.clear()
+        if clear_source:
+            _WORD_POOL_SOURCE = None
+
+
+def _adult_words_unlocked(data: dict) -> bool:
+    password = str(data.get("adult_unlock_password", ""))
+    if not password:
+        return False
+    expected = getattr(settings, "ADULT_WORD_UNLOCK_PASSWORD", "")
+    if expected and secrets.compare_digest(password, expected):
+        return True
+    raise ValueError("Freischalt-Passwort für Adult-Wörter ist falsch.")
+
+
+def _pick_pool_entries(pool: tuple, config: GeneratorConfig, include_syllables: bool) -> list:
+    attempts = 20 if config.avoid_same_initial else 1
+    entries = []
+
+    for _ in range(attempts):
+        offsets = stride_indices(len(pool), config.word_count)
+        entries = [pool[offset] for offset in offsets]
+        if not config.avoid_same_initial:
+            return entries
+        initials = {
+            _entry_word(entry, include_syllables)[0].lower()
+            for entry in entries
+        }
+        if len(initials) == len(entries):
+            return entries
+
+    return entries
+
+
+def _entry_word(entry, include_syllables: bool) -> str:
+    return entry["word"] if include_syllables else entry
 
 
 @csrf_exempt
@@ -112,7 +250,7 @@ def save_profile(request):
         except Lookup.DoesNotExist:
             return default
 
-    word_count = max(2, min(10, int(data.get("word_count", 4))))
+    word_count = max(2, min(20, int(data.get("word_count", 4))))
     min_len    = max(2, int(data.get("min_length", 4)))
     max_len    = max(min_len, int(data.get("max_length", 12)))
 
@@ -128,6 +266,10 @@ def save_profile(request):
             eszett_mode        = get_lookup("eszett_mode",  data.get("eszett_mode",  "allow")),
             reverse_mode       = get_lookup("reverse_mode", data.get("reverse_mode", "off")),
             avoid_same_initial = bool(data.get("avoid_same_initial", False)),
+            syllable_shuffle_enabled = bool(data.get("syllable_shuffle", False)),
+            digit_mode         = data.get("digit_mode", "off")[:20],
+            special_mode       = data.get("special_mode", "off")[:20],
+            special_chars_enabled = data.get("special_mode", "off") != "off",
         ),
     )
 

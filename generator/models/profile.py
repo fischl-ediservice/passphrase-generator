@@ -21,7 +21,10 @@ class GeneratorProfile(VersionedModel):
     reverse_mode = models.ForeignKey("generator.Lookup", on_delete=models.PROTECT, related_name="profiles_by_reverse",     limit_choices_to={"type__code": "reverse_mode"}, null=True, blank=True)
     separator             = models.CharField(max_length=10, default="-", blank=True)
     special_chars_enabled = models.BooleanField(default=False)
+    digit_mode            = models.CharField(max_length=20, default="off")
+    special_mode          = models.CharField(max_length=20, default="off")
     avoid_same_initial    = models.BooleanField(default=False)
+    syllable_shuffle_enabled = models.BooleanField(default=False)
     exclude_germanized    = models.BooleanField(default=True)
 
     class Meta:
@@ -52,7 +55,11 @@ class GeneratorProfile(VersionedModel):
             reverse_mode          = self.reverse_mode.code if self.reverse_mode else "off",
             special_chars_enabled = self.special_chars_enabled,
             special_char_rules    = rules,
+            special_mode          = self.special_mode or ("replace" if self.special_chars_enabled else "off"),
+            digit_mode            = self.digit_mode,
+            syllable_shuffle_enabled = self.syllable_shuffle_enabled,
             avoid_same_initial    = self.avoid_same_initial,
+            include_adult_words   = False,
         )
 
     def __str__(self):

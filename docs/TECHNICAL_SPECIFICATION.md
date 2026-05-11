@@ -1,4 +1,4 @@
-# TECHNICAL_OVERVIEW.md
+# TECHNICAL_SPECIFICATION.md
 
 # Passphrase Generator
 
@@ -50,6 +50,7 @@ Entwicklung eines sprachlich intelligenten Open-Source-Passphrasengenerators auf
 - keine Telemetrie
 - keine Passwortspeicherung
 - keine externen APIs
+- Datenimporte aus lokalen Kopien unter `data/`, nicht aus Remote-Quellen
 
 ### Open Source
 
@@ -71,13 +72,36 @@ Entwicklung eines sprachlich intelligenten Open-Source-Passphrasengenerators auf
 - optionale Trenner
 - optionale Groß-/Kleinschreibung
 
+### Wortauswahl
+
+- alle gültigen Wörter bilden den logischen Auswahlpool
+- Startposition `x` wird mit `secrets.randbelow` gewählt
+- Schrittlänge `y` wird mit `secrets.randbelow` gewählt
+- nach jeder Entnahme schrumpft der Pool
+- die nächste Position wird gegen die neue Poolgröße gerechnet
+- bei Überlauf wird am Anfang des geschrumpften Pools weitergelesen
+- der Web-Prozess lädt den Wortbestand beim Start einmal aus der DB
+- gefilterte Wortpools werden danach aus diesem Speicherbestand abgeleitet
+- nach einem Wortlistenimport ist ein Neustart des Web-Prozesses empfohlen
+
 ---
 
 ### Wortlisten
 
 - deutsche Wörter
-- Filterung problematischer Einträge
+- strenge Importfilterung problematischer Einträge, Flexionsformen und Ortsnamen
+- Adult-Wörter bleiben markiert in der DB, sind aber standardmäßig vom Pool ausgeschlossen
+- harte Slurs und direkte Beleidigungen werden beim Import vollständig verworfen
+- nicht-deutsche Akzente werden beim Import normalisiert, deutsche Umlaute bleiben erhalten
+- Fach-/Nerd-Wörter bleiben markiert in der DB, sind aber standardmäßig vom Pool ausgeschlossen
 - Markierung eingedeutschter Begriffe
+- Import aus lokaler Datei `data/wordlists/de_standard.txt`
+
+### Ortsnamen-Banliste
+
+- Import aus lokalen GeoNames-Dumps unter `data/geonames/`
+- unterstützt `.zip`-Dumps und entpackte `.txt`-Dateien
+- kein Download während des Management-Commands
 
 ---
 
@@ -140,8 +164,22 @@ Transformationen wie:
 - Reverse-Modi
 - Shuffle-Modi
 - Sonderzeichenersetzungen
+- Zifferninjektion
 
 können die praktische Komplexität zusätzlich erhöhen, sind jedoch nicht der Hauptfaktor der Sicherheit.
+
+### Silbenbasierte Zifferninjektion
+
+- alle Silben der ausgewählten Wörter werden gezählt
+- die Ziel-Silbe wird mit `secrets.randbelow(Gesamtsilbenzahl)` gewählt
+- die Ziffer wird an der Silbengrenze des global gewählten Silben-Slots eingefügt
+
+### Sonderzeichen-Injektion
+
+- nutzt die gleiche Modus-Logik wie Zifferninjektion
+- unterstützt Buchstabenersetzung, Silbengrenze, Wortende und Phrasenanfang/-ende
+- die konkrete Ersetzung bzw. das konkrete Sonderzeichen wird kryptografisch zufällig gewählt
+- Standardtabelle enthält u.a. `a→@` und `s→$`
 
 ### Projektphilosophie
 

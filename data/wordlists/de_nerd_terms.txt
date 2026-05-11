@@ -1,0 +1,6 @@
+# Fach-/Nerd-Bestandteile.
+# Diese Wörter bleiben importierbar, sind aber nicht im Standard-Pool.
+# case: markiert bewusst case-sensitive Bestandteile.
+case:BVerf
+Bundesamt
+Geschlechtskrankheit

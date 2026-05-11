@@ -24,6 +24,7 @@ services:
       DATABASE_URL:  postgres://passphrase:passphrase@db:5432/passphrase_generator
       DJANGO_SECRET: change-me-in-production
       DEBUG:         "true"
+      ADULT_WORD_UNLOCK_PASSWORD: fluchmodus
     depends_on:
       db:
         condition: service_healthy

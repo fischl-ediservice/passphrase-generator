@@ -4,12 +4,12 @@ Kern-Generator. Kein Framework-Import — nur stdlib + core.
 import secrets
 from dataclasses import dataclass, field
 
-from core.entropy import calculate_entropy, entropy_label, secure_sample, stride_sample
+from core.entropy import calculate_entropy, entropy_label, stride_sample
 from core.transforms import (
     apply_case,
     apply_case_guarantee,
     apply_eszett,
-    apply_special_chars,
+    inject_special_char,
     inject_digit,
     normalize_umlaut,
     reverse_word,
@@ -28,9 +28,12 @@ class GeneratorConfig:
     reverse_mode:          str   = "off"      # off | some | every_other | all
     special_chars_enabled:    bool  = False
     special_char_rules:       list  = field(default_factory=list)  # [(source, target, weight)]
+    special_mode:             str   = "off"   # off | replace | inject_syllable | inject_word_end | inject_phrase
     avoid_same_initial:       bool  = False
     syllable_shuffle_enabled: bool  = False
     digit_mode:               str   = "off"   # off | replace | inject_syllable | inject_word_end | inject_phrase
+    include_adult_words:      bool  = False
+    include_technical_words:  bool  = False
 
 
 @dataclass
@@ -54,7 +57,16 @@ def generate_passphrase(
 
     pool_size      = len(words)
     selected       = _pick_words(words, config)
-    transformed    = [
+    return generate_passphrase_from_selection(selected, pool_size, config, syllables_map)
+
+
+def generate_passphrase_from_selection(
+    selected: list[str],
+    pool_size: int,
+    config: GeneratorConfig,
+    syllables_map: dict[str, list[str]] | None = None,
+) -> PassphraseResult:
+    transformed = [
         _transform(w, i, config, syllables_map)
         for i, w in enumerate(selected)
     ]
@@ -63,6 +75,13 @@ def generate_passphrase(
     if config.digit_mode != "off":
         transformed = inject_digit(
             transformed, config.digit_mode, secrets.randbelow,
+            syllables_map=syllables_map,
+            original_words=selected,
+        )
+    if config.special_mode != "off":
+        transformed = inject_special_char(
+            transformed, config.special_mode, secrets.randbelow,
+            rules=config.special_char_rules,
             syllables_map=syllables_map,
             original_words=selected,
         )
@@ -88,15 +107,10 @@ def _join(words: list[str], config: GeneratorConfig) -> str:
 
 
 def _pick_words(words: list[str], config: GeneratorConfig) -> list[str]:
-    # Stride-Sampling: gleichmäßige Abdeckung des Pools
-    # dann aus dem Stride-Sample die finale Auswahl treffen
-    sample_size = min(len(words), max(config.word_count * 10, 500))
-    pool = stride_sample(words, sample_size)
-
     if not config.avoid_same_initial:
-        return secure_sample(pool, config.word_count)
+        return stride_sample(words, config.word_count)
     for _ in range(20):
-        candidate = secure_sample(pool, config.word_count)
+        candidate = stride_sample(words, config.word_count)
         if len({w[0].lower() for w in candidate}) == len(candidate):
             return candidate
     return candidate  # type: ignore[return-value]
@@ -113,8 +127,6 @@ def _transform(
         word = shuffle_syllables(word, syllables, secrets.randbelow)
     word = normalize_umlaut(word, config.umlaut_mode)
     word = apply_eszett(word, config.eszett_mode)
-    if config.special_chars_enabled and config.special_char_rules:
-        word = apply_special_chars(word, config.special_char_rules, secrets.randbelow)
     word = _maybe_reverse(word, index, config.reverse_mode)
     word = apply_case(word, config.case_mode)
     return word
