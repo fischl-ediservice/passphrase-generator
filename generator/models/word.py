@@ -49,6 +49,7 @@ class Word(VersionedModel):
     is_loanword        = models.BooleanField(default=False)
     is_germanized      = models.BooleanField(default=False, help_text="z.B. Computer, Meeting")
     is_technical       = models.BooleanField(default=False)
+    adult_only         = models.BooleanField(default=False)
     reverse_suitable   = models.BooleanField(default=True)
     syllables_anchored = models.BooleanField(default=True)
 

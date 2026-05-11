@@ -1,0 +1,27 @@
+# Problematische Bestandteile.
+#
+# hard:  wird beim Import komplett verworfen
+# hard_suffix: verwirft Wörter mit dieser Endung
+# adult: bleibt in der DB, wird aber nur per Experten-Passwort freigeschaltet
+# adult_suffix: markiert Wörter mit dieser Endung als adult, ohne z.B. Sauerstoff zu treffen
+# case:  markiert innerhalb der Kategorie bewusst case-sensitive Bestandteile
+hard:nazi
+hard:hitler
+hard:case:SS
+hard:hure
+hard:fotze
+hard:nutte
+hard:schlampe
+hard:hurensohn
+hard:arschloch
+hard:neger
+hard_suffix:sau
+hard_suffix:säue
+hard_suffix:säuen
+adult:fuck
+adult:fick
+adult:wichs
+adult:scheiß
+adult:scheiss
+adult:verdammt
+adult:zefix

@@ -87,22 +87,37 @@ _LETTER_TO_DIGIT: dict[str, str] = {
     's': '5', 'b': '6', 't': '7', 'g': '9', 'l': '1',
 }
 
+_LETTER_TO_SPECIAL: tuple[tuple[str, str, int], ...] = (
+    ("a", "@", 10),
+    ("s", "$", 10),
+    ("e", "€", 7),
+    ("i", "!", 7),
+    ("t", "+", 6),
+    ("l", "|", 5),
+    ("o", "°", 4),
+    ("ß", "§", 4),
+)
+
 
 def apply_case_guarantee(words: list[str], case_mode: str, rng_func) -> list[str]:
     """Setzt genau einen zufälligen Buchstaben — immer, kein Retry.
     upper-Modus: einen lowern. Alle anderen: einen uppern."""
+    def transformed_char(ch: str) -> str:
+        return ch.lower() if case_mode == "upper" else ch.upper()
+
     candidates = [
         (wi, ci)
         for wi, w in enumerate(words)
         for ci, c in enumerate(w)
         if c.isalpha()
+        and len(transformed_char(c)) == 1
     ]
     if not candidates:
         return words
     words = list(words)
     wi, ci = candidates[rng_func(len(candidates))]
     w = words[wi]
-    ch = w[ci].lower() if case_mode == "upper" else w[ci].upper()
+    ch = transformed_char(w[ci])
     words[wi] = w[:ci] + ch + w[ci + 1:]
     return words
 
@@ -124,7 +139,6 @@ def inject_digit(
       inject_phrase    – als eigenes Token an Start oder Ende der Phrase
     """
     words = list(words)
-    digit = str(rng_func(10))
 
     if mode == "replace":
         candidates = [
@@ -139,18 +153,10 @@ def inject_digit(
             words[wi] = w[:ci] + d + w[ci + 1:]
 
     elif mode == "inject_syllable":
-        # Alle Silbengrenzen: (word_index, char_pos_after_syllable)
-        boundaries: list[tuple[int, int]] = []
-        orig = original_words or words
-        for wi, (w, orig_w) in enumerate(zip(words, orig)):
-            sylls = (syllables_map or {}).get(orig_w, [orig_w])
-            pos = 0
-            for syll in sylls:
-                pos += len(syll)
-                # Grenze ist gültig auch wenn pos >= len(w) (Wortende)
-                boundaries.append((wi, min(pos, len(w))))
-        if boundaries:
-            wi, char_pos = boundaries[rng_func(len(boundaries))]
+        boundary = _pick_syllable_boundary(words, syllables_map, original_words, rng_func)
+        digit = str(rng_func(10))
+        if boundary:
+            wi, char_pos = boundary
             w = words[wi]
             words[wi] = w[:char_pos] + digit + w[char_pos:]
         else:
@@ -159,16 +165,127 @@ def inject_digit(
             words[wi] += digit
 
     elif mode == "inject_word_end":
+        digit = str(rng_func(10))
         wi = rng_func(len(words))
         words[wi] += digit
 
     elif mode == "inject_phrase":
+        digit = str(rng_func(10))
         if rng_func(2) == 0:
             words.insert(0, digit)
         else:
             words.append(digit)
 
     return words
+
+
+def inject_special_char(
+    words: list[str],
+    mode: str,
+    rng_func,
+    rules: list[tuple[str, str, int]] | None = None,
+    syllables_map: dict[str, list[str]] | None = None,
+    original_words: list[str] | None = None,
+) -> list[str]:
+    """
+    Fügt genau ein Sonderzeichen ein oder ersetzt genau einen geeigneten Buchstaben.
+
+    Modi:
+      replace          – einen mappbaren Buchstaben durch Sonderzeichen ersetzen (a→@ …)
+      inject_syllable  – zwischen zwei beliebige Silbengrenzen der Phrase
+      inject_word_end  – ans Ende eines zufälligen Wortes anhängen
+      inject_phrase    – als eigenes Token an Start oder Ende der Phrase
+    """
+    if mode == "off":
+        return words
+
+    words = list(words)
+    replacement_rules = rules or list(_LETTER_TO_SPECIAL)
+
+    if mode == "replace":
+        candidates = [
+            (wi, ci, target, weight)
+            for wi, w in enumerate(words)
+            for ci, c in enumerate(w)
+            for source, target, weight in replacement_rules
+            if c.lower() == source
+        ]
+        if candidates:
+            total_weight = sum(weight for *_, weight in candidates)
+            roll = rng_func(total_weight)
+            cumulative = 0
+            for wi, ci, target, weight in candidates:
+                cumulative += weight
+                if roll < cumulative:
+                    word = words[wi]
+                    words[wi] = word[:ci] + target + word[ci + 1:]
+                    break
+
+    elif mode == "inject_syllable":
+        boundary = _pick_syllable_boundary(words, syllables_map, original_words, rng_func)
+        special = _pick_special_char(replacement_rules, rng_func)
+        if boundary:
+            wi, char_pos = boundary
+            word = words[wi]
+            words[wi] = word[:char_pos] + special + word[char_pos:]
+        else:
+            wi = rng_func(len(words))
+            words[wi] += special
+
+    elif mode == "inject_word_end":
+        special = _pick_special_char(replacement_rules, rng_func)
+        wi = rng_func(len(words))
+        words[wi] += special
+
+    elif mode == "inject_phrase":
+        special = _pick_special_char(replacement_rules, rng_func)
+        if rng_func(2) == 0:
+            words.insert(0, special)
+        else:
+            words.append(special)
+
+    return words
+
+
+def _pick_special_char(rules: list[tuple[str, str, int]], rng_func) -> str:
+    targets = [(target, weight) for _, target, weight in rules]
+    total_weight = sum(weight for _, weight in targets)
+    roll = rng_func(total_weight)
+    cumulative = 0
+    for target, weight in targets:
+        cumulative += weight
+        if roll < cumulative:
+            return target
+    return targets[-1][0]
+
+
+def _pick_syllable_boundary(
+    words: list[str],
+    syllables_map: dict[str, list[str]] | None,
+    original_words: list[str] | None,
+    rng_func,
+) -> tuple[int, int] | None:
+    entries: list[tuple[int, str, list[str]]] = []
+    total_syllables = 0
+    orig = original_words or words
+
+    for wi, (word, orig_word) in enumerate(zip(words, orig)):
+        syllables = (syllables_map or {}).get(orig_word) or [orig_word]
+        entries.append((wi, word, syllables))
+        total_syllables += len(syllables)
+
+    if total_syllables == 0:
+        return None
+
+    target = rng_func(total_syllables)
+    seen = 0
+    for wi, word, syllables in entries:
+        if target < seen + len(syllables):
+            syllable_index = target - seen
+            char_pos = sum(len(s) for s in syllables[: syllable_index + 1])
+            return wi, min(char_pos, len(word))
+        seen += len(syllables)
+    return None
 
 
 def shuffle_syllables(word: str, syllables: list[str], rng_func) -> str:

@@ -1,0 +1,8 @@
+# Lokale Sperrliste fuer formal gueltige, aber schlecht brauchbare Eintraege.
+# Eine Zeile pro Wort, case-insensitiv.
+Berstens
+Basil
+Gorch
+Neuroute
+Seiher
+Warmform
